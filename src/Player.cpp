@@ -3524,7 +3524,8 @@ i32 Player::UpdateDeath()
             this->playerSprite.scale.x = 3.0f;
             this->playerSprite.scale.y = 3.0f;
             g_AnmManager->SetAnmIdxAndExecuteScript(&this->playerSprite, ANM_SCRIPT_PLAYER_IDLE);
-            if ((i32)g_GameManager.globals->livesRemaining <= 0)
+            if ((i32)g_GameManager.globals->livesRemaining <= 0 &&
+                !PracticeRuntime::OverlayInfiniteLives())
             {
                 g_GameManager.isInRetryMenu = 1;
             }

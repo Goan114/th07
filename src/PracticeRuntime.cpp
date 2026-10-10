@@ -27,6 +27,9 @@
 #ifdef TH_ENABLE_THPRAC
 #include <SDL3/SDL.h>
 #include "ThpracImGui.hpp"
+#include "PurpleHotkey.hpp"
+#include "PurpleInput.hpp"
+#include "PurpleLicense.hpp"
 #endif
 #if defined(THPRAC_PORTABLE_ENABLED)
 #include "section_catalog.hpp"
@@ -110,6 +113,7 @@ struct OverlayState
     bool autoBomb = false;
     bool everlastingBgm = false;
     bool trackerOpen = false;
+    bool enemyInvincible = false;
 };
 static OverlayState g_Overlay;
 // THOverlay::OnPreUpdate runs after THGuiPrac/THGuiRep in the same ImGui frame
@@ -123,9 +127,11 @@ struct AdvancedOptionsState
     bool allClearBonus = false;
     bool fixSpellBonusDisplay = false;
     bool showLicense = false;
+    bool mapInfiniteLivesToNoContinue = false;
+    PurpleInput input;
 };
 static AdvancedOptionsState g_AdvancedOptions;
-static bool g_OverlayKeyDown[13] = {};
+static bool g_OverlayKeyDown[15] = {};
 #endif
 static i32 g_TrackerBorderBreaks = 0;
 static i32 g_EverlastingCurrentSong = -1;
@@ -1608,7 +1614,11 @@ bool OverlayInvincible()
 bool OverlayInfiniteLives()
 {
 #ifdef TH_ENABLE_THPRAC
-    return !g_GameManager.replay && g_Overlay.infiniteLives;
+    // Purple th07_inf_lives (0x441171) preserves the decrement unless
+    // no-continue mapping is off or the pre-decrement life count is < 1.
+    return !g_GameManager.replay && g_Overlay.infiniteLives &&
+        (!g_AdvancedOptions.mapInfiniteLivesToNoContinue ||
+         (g_GameManager.globals && g_GameManager.globals->livesRemaining < 1.0f));
 #else
     return false;
 #endif
@@ -1660,6 +1670,27 @@ bool AdvancedAllClearBonus()
     return !g_GameManager.replay && g_AdvancedOptions.allClearBonus;
 #else
     return false;
+#endif
+}
+
+bool OverlayEnemyInvincible()
+{
+#ifdef TH_ENABLE_THPRAC
+    return !g_GameManager.replay && g_Overlay.enemyInvincible;
+#else
+    return false;
+#endif
+}
+
+u16 FilterGameplayInput(u16 buttons)
+{
+#ifdef TH_ENABLE_THPRAC
+    // Filter the merged keyboard/controller/touch sample before it becomes
+    // recorded gameplay input. ImGui navigation retains its own raw owner.
+    return g_AdvancedOptions.input.filter(buttons,
+        Enabled() && g_Supervisor.curState == 2 && !CapturesGameInput(), g_GameManager.replay);
+#else
+    return buttons;
 #endif
 }
 
@@ -1738,6 +1769,9 @@ static bool EaglerOverlayKeyDown(SDL_Scancode scancode)
     case SDL_SCANCODE_F6: bit = 6; break;
     case SDL_SCANCODE_F7: bit = 7; break;
     case SDL_SCANCODE_TAB: bit = 8; break;
+    case SDL_SCANCODE_F12: bit = 9; break;
+    case SDL_SCANCODE_U: bit = 10; break;
+    case SDL_SCANCODE_F8: bit = 11; break;
     default: return false;
     }
     return EM_ASM_INT({
@@ -1783,6 +1817,7 @@ void UpdateOverlay()
 #ifdef TH_ENABLE_THPRAC
     if (OverlayKeyPressed(0, SDL_SCANCODE_BACKSPACE)) g_ModMenuToggleRequested = true;
     if (OverlayKeyPressed(8, SDL_SCANCODE_TAB)) g_Overlay.trackerOpen = !g_Overlay.trackerOpen;
+    if (OverlayKeyPressed(14, SDL_SCANCODE_F8)) g_Overlay.trackerOpen = !g_Overlay.trackerOpen;
     if (OverlayKeyPressed(9, SDL_SCANCODE_F12)) g_AdvancedMenuToggleRequested = true;
 #endif
 }
@@ -1820,6 +1855,7 @@ void DrawOverlay()
         if (OverlayKeyPressed(5, SDL_SCANCODE_F5)) g_Overlay.timeLock = !g_Overlay.timeLock;
         if (OverlayKeyPressed(6, SDL_SCANCODE_F6)) g_Overlay.autoBomb = !g_Overlay.autoBomb;
         if (OverlayKeyPressed(7, SDL_SCANCODE_F7)) g_Overlay.everlastingBgm = !g_Overlay.everlastingBgm;
+        if (OverlayKeyPressed(13, SDL_SCANCODE_U)) g_Overlay.enemyInvincible = !g_Overlay.enemyInvincible;
 
         ImGui::SetNextWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_Always);
         ImGui::SetNextWindowBgAlpha(0.5f);
@@ -1828,13 +1864,15 @@ void DrawOverlay()
             ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav;
         if (ImGui::Begin("Mod Menu###th07-thprac-overlay", nullptr, flags))
         {
-            ImGui::Checkbox(ThpracImGui::Text(ThpracImGui::TextId::Invincible), &g_Overlay.invincible);
-            ImGui::Checkbox(ThpracImGui::Text(ThpracImGui::TextId::InfLives), &g_Overlay.infiniteLives);
-            ImGui::Checkbox(ThpracImGui::Text(ThpracImGui::TextId::InfBombs), &g_Overlay.infiniteBombs);
-            ImGui::Checkbox(ThpracImGui::Text(ThpracImGui::TextId::InfPower), &g_Overlay.infinitePower);
-            ImGui::Checkbox(ThpracImGui::Text(ThpracImGui::TextId::TimeLock), &g_Overlay.timeLock);
-            ImGui::Checkbox(ThpracImGui::Text(ThpracImGui::TextId::AutoBomb), &g_Overlay.autoBomb);
-            ImGui::Checkbox(ThpracImGui::Text(ThpracImGui::TextId::EverlastingBgm), &g_Overlay.everlastingBgm);
+            DrawPurpleHotkey("F1", ThpracImGui::Text(ThpracImGui::TextId::Invincible), g_Overlay.invincible);
+            DrawPurpleHotkey("F2", ThpracImGui::Text(ThpracImGui::TextId::InfLives), g_Overlay.infiniteLives);
+            DrawPurpleHotkey("F3", ThpracImGui::Text(ThpracImGui::TextId::InfBombs), g_Overlay.infiniteBombs);
+            DrawPurpleHotkey("F4", ThpracImGui::Text(ThpracImGui::TextId::InfPower), g_Overlay.infinitePower);
+            DrawPurpleHotkey("F5", ThpracImGui::Text(ThpracImGui::TextId::TimeLock), g_Overlay.timeLock);
+            DrawPurpleHotkey("F6", ThpracImGui::Text(ThpracImGui::TextId::AutoBomb), g_Overlay.autoBomb);
+            DrawPurpleHotkey("F7", ThpracImGui::Text(ThpracImGui::TextId::EverlastingBgm), g_Overlay.everlastingBgm);
+            DrawPurpleHotkey("F8", ThpracImGui::Text(ThpracImGui::TextId::InGameInfo), g_Overlay.trackerOpen);
+            DrawPurpleHotkey("U", ThpracImGui::Text(ThpracImGui::TextId::EnemyInvincible), g_Overlay.enemyInvincible);
         }
         ImGui::End();
     }
@@ -1926,6 +1964,18 @@ void DrawOverlay()
             if (ImGui::CollapsingHeader(gameplay[locale], ImGuiTreeNodeFlags_DefaultOpen))
             {
                 ImGui::Indent();
+                const auto inputOption = [&](const char* const* text, bool& value) {
+                    ImGui::Checkbox(text[locale], &value);
+                };
+                inputOption(purple_TH_ADV_DISABLE_X_KEY, g_AdvancedOptions.input.disable_xkey);
+                ImGui::SameLine();
+                inputOption(purple_TH_ADV_DISABLE_SHIFT_KEY, g_AdvancedOptions.input.disable_shiftkey);
+                ImGui::SameLine();
+                inputOption(purple_TH_ADV_DISABLE_Z_KEY, g_AdvancedOptions.input.disable_zkey);
+                inputOption(purple_TH_ADV_DISABLE_C_KEY_SAMETIME, g_AdvancedOptions.input.disable_Ckey_at_same_time);
+                ImGui::SameLine();
+                inputOption(purple_TH_ADV_FORCE_SHIFT_KEY, g_AdvancedOptions.input.force_shiftkey);
+                inputOption(purple_THPRAC_INFLIVES_MAP, g_AdvancedOptions.mapInfiniteLivesToNoContinue);
                 ImGui::Checkbox(allClearBonus[locale], &g_AdvancedOptions.allClearBonus);
                 ImGui::Checkbox(ThpracImGui::Text(ThpracImGui::TextId::FixSpellBonusDisplay),
                                 &g_AdvancedOptions.fixSpellBonusDisplay);
@@ -1943,7 +1993,7 @@ void DrawOverlay()
                 if (g_AdvancedOptions.showLicense)
                 {
                     ImGui::BeginChild("THPRAC license", ImVec2(0.0f, 100.0f), true);
-                    THPrac::Gui::ShowLicenceInfo();
+                    ImGui::TextUnformatted(purple_license);
                     ImGui::EndChild();
                 }
                 ImGui::Unindent();

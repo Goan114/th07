@@ -60,6 +60,8 @@ bool OverlayInfinitePower();
 bool OverlayTimeLock();
 bool OverlayAutoBomb();
 bool OverlayEverlastingBgm();
+bool OverlayEnemyInvincible();
+u16 FilterGameplayInput(u16 buttons);
 bool AdvancedAllClearBonus();
 bool AdvancedFixSpellBonusDisplay();
 bool ConsumeResurrectionButterflySpawnSkip();

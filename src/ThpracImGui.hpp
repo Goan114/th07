@@ -81,6 +81,8 @@ enum class TextId
     AdvancedOptions,
     GameSpeed,
     FixSpellBonusDisplay,
+    InGameInfo,
+    EnemyInvincible,
 };
 
 bool Initialize();

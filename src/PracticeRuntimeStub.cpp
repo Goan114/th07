@@ -31,6 +31,8 @@ bool OverlayInfinitePower() { return false; }
 bool OverlayTimeLock() { return false; }
 bool OverlayAutoBomb() { return false; }
 bool OverlayEverlastingBgm() { return false; }
+bool OverlayEnemyInvincible() { return false; }
+u16 FilterGameplayInput(u16 buttons) { return buttons; }
 bool AdvancedAllClearBonus() { return false; }
 bool AdvancedFixSpellBonusDisplay() { return false; }
 bool ConsumeResurrectionButterflySpawnSkip() { return false; }

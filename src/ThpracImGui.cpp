@@ -8,6 +8,7 @@
 #include "Supervisor.hpp"
 #include "imgui_freetype.h"
 #include "utils.hpp"
+#include "PurpleHotkey.hpp"
 #if defined(THPRAC_PORTABLE_ENABLED)
 #include "section_catalog.hpp"
 #endif
@@ -114,6 +115,8 @@ constexpr const char *g_Text[][3] = {
     {"高级选项", "Advanced Options", "詳細設定"},
     {"游戏速度", "Game Speed", "ゲーム速度"},
     {"修复符卡bonus的显示bug", "Fix the display bug of the spell bonus", "スペカボーナスの表示バグを修正"},
+    {PracticeRuntime::purple_THPRAC_INGAMEINFO[0], PracticeRuntime::purple_THPRAC_INGAMEINFO[1], PracticeRuntime::purple_THPRAC_INGAMEINFO[2]},
+    {PracticeRuntime::purple_TH_ENEMY_MUTEKI[0], PracticeRuntime::purple_TH_ENEMY_MUTEKI[1], PracticeRuntime::purple_TH_ENEMY_MUTEKI[2]},
 };
 
 Locale DetectLocale()
