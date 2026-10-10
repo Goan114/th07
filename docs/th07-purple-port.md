@@ -35,9 +35,38 @@ sites are unchanged.
 - Native no-continue infinite-life mapping (`th07_inf_lives`, `0x441171`)
   applies the pre-decrement `< 1` gate. Preserve the native F2 game-over bypass
   when the stock lives are zero; do not write a synthetic positive life count.
-- Extracted purple MIT license is independent of the absent external GUI
-  extension. Existing Practice configuration, section timings and Replay
-  provenance remain the BLUE implementation at this checkpoint.
+- Extracted purple MIT license is independent of the external GUI extension.
+  Practice configuration and Replay provenance still retain the BLUE identity
+  until the complete purple profile can be promoted.
+- User-supplied `thprac-reallyportable.zip` SHA-256:
+  `ef423e0560bcb79ad26b592cd04b4458ce600f3748ccf8a936646866bfa60820`.
+  `scripts/import-portable-th07.mjs` imports source only, with per-file hashes
+  in `portable/IMPORT.json`; no .git, binary, game DATA or build output.
+  The imported adapter is now owned in this experiment and is the default
+  enabled-build extension; ordinary THPrac-OFF builds remain unhooked.
+- Purple and recovered BLUE section definitions, chapter and THPatch bodies
+  are identical after whitespace removal. Keep the legacy Replay IDs and
+  instruction semantics; generate all 103 section patches from purple source.
+- Adapter applies patches against a private byte copy and commits bytes and
+  context only after all bounded writes succeed. Preserve mandatory retail
+  CRC checks; no new permissive translated-ECL fallback.
+- Source-equivalent projectile/laser hitbox rendering, lock timer reset hooks
+  (GUI creation / ECL 99 / ECL 114) and logic-only countdown-setter observation.
+- One-key death uses actual lives/bombs and PLAYER_STATE_DEAD; retains other
+  hotkey switches, suppresses Replay mutation and never manufactures RNG.
+- Native key HUD shape, colors, alignment, TH07 key masks and 60-tick APS.
+  The player update owns sampling (one P1 sample, not presentation frames).
+  Record/stop/export APS.csv and plot integer samples, avoiding the native
+  vector<int> to vector<uint8_t> reinterpretation error.
+- Native reaction-test class and state machine extracted from the purple shared
+  tools; SDL nanosecond counter replaces QueryPerformanceCounter, a private GUI
+  PRNG replaces GetRndGenerator (never gameplay RNG), and merged raw button edges
+  replace Win32 keyboard queries. Reset on collapsing the F12 section.
+- Always-save-score/spell-history option uses the native state-18 temporary
+  ResultScreen AddedCallback / WriteScore / ReleaseScoreDat sequence at the two
+  actual pause-menu quit/retry transitions. Skip Replay, disabled THPrac and
+  existing persistent-write exclusions. Free owned score-list nodes without
+  invoking DeletedCallback's unrelated shared texture/chain teardown.
 
 ## Checks actually run
 
@@ -57,24 +86,46 @@ sites are unchanged.
   PASS. No generated game content is included.
 - Full link/build, original demos, long Replay golden checks, browser/phone
   interaction and public deployment: NOT RUN.
+- Recovered portable core Replay decode and CRC / expected-byte / transactional
+  failure tests: PASS.
+- Production adapter tested against the original local TH07 DATA (all eight
+  retail ECL CRC identities matched): 103 sections x 3 phases x 6 difficulties
+  x 6 shots x 2 dialogue states = 22,248 cases PASS. This tests patch dispatch,
+  bounded native patch execution, context and fail-without-mutation behavior;
+  game-start/stage-background and long Replay playback remain separate gates.
+- Actual recovered ImGui source, hotkey and key HUD rendering / masks / APS /
+  CSV regression: PASS. Existing 2,097,152 input cases remain PASS.
+- Reaction-test cold-open/reset/render in all three locales: PASS. This is NOT
+  a complete press/release timing, physical input or high-refresh latency test.
+- Enabled syntax checks of ResultScreen, AsciiManager and PracticeRuntime with
+  the native pause-exit save owner: PASS. Persistent score-file lifecycle and
+  actual browser quit/retry remain unverified.
+- Production syntax checks WITH the formerly missing portable extension:
+  PracticeRuntime, EclManager, Gui, Player, EnemyManager, ThpracImGui and the
+  recovered adapter: PASS (Emscripten SDL3 ports used for this compile lane).
 
 ## Remaining before promotion
 
-- Recover/materialize the referenced `thprac-reallyportable/portable` source,
-  or explicitly replace that extension with a fully audited purple extractor.
-  Current CMake integration requires `TH_RUNTIME_EXTENSION_CMAKE` and
-  `thprac_portable_attach`; the extension and `section_catalog.hpp` are absent
-  from this workspace. The existing source audit additionally references
-  missing `th07-eagler` paths; do not weaken those tests to claim completion.
+- Source recovery is closed. Older source audits still reference missing
+  `th07-eagler` paths; migrate their configured reference paths without weakening
+  assertions before claiming full acceptance.
 - Verify all native practice fields, 103 sections, timeline/health/time/dialogue
   patch paths, Extra/Phantasm lifecycle, and blue replay compatibility.
-- Connect and verify the remaining native F12 owners: key HUD/APS, reaction
-  test, fast retry, game speed (logical cadence, not Launcher high refresh),
-  lock-timer display, projectile/laser hitbox display, one-key death and
-  always-save-score/spell-history. Do not import Launcher-only tools.
+- Connect and verify the remaining native F12 owners: fast retry and game speed
+  (logical cadence, not Launcher high refresh). Run full lifecycle/device
+  verification for the connected reaction test, pause-exit score saving,
+  HUD, lock timer, hitbox and one-key death. Do not import
+  Launcher-only tools.
 - Audit information/tracker counters and native save/read/checksum/MIDI hooks.
 - Materialize pinned build dependencies, build a source-only Runtime and run
   lifecycle, replay determinism, enabled/OFF and mobile acceptance gates.
+  eagler-common `3d54af473a9b8b900bf4aadecc6a318cf6a49e35`, SDL_image
+  `bec9134a26c7d0f31b36d6083c25296e04cabff5`, SDL_ttf
+  `a1ce3670aec736ecbf0936c43f2f0cc53aa61e5b` and their dependencies are
+  materialized. SDL `0a61b59af1eec0c89b06b13bd4fd0f2ecdc3aff6` cannot be fetched
+  from the configured `libsdl-org/SDL` origin ("not our ref"). The incidental
+  checkout created by submodule initialization is NOT accepted as a replacement
+  pin and must not enter a commit/release. Full build remains NOT RUN.
 - Review and promote the complete experiment diff into canonical Eagler only
   when its owners and evidence are closed. No deployment or push is authorized
   merely by this checkpoint.
@@ -84,4 +135,6 @@ Run the current isolated gates with explicit source/tool roots:
 ```text
 node scripts/generate-purple-thprac.mjs <purple-checkout> --check
 EMSDK=<local-sdk> THPRAC_IMGUI_ROOT=<reviewed-imgui> node tests/test-purple-menu.mjs
+node scripts/import-portable-th07.mjs <recovered-reference> <purple-checkout> --check
+EMSDK=<local-sdk> TH07_RETAIL_DAT=<original-DATA> node tests/test-purple-portable.mjs
 ```

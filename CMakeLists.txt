@@ -186,7 +186,7 @@ endif()
 
 # Optional, generic out-of-tree runtime extension. Ordinary builds leave this
 # empty and retain no dependency on the extension implementation.
-set(TH_RUNTIME_EXTENSION_CMAKE "" CACHE FILEPATH "Optional runtime extension CMake integration")
+set(TH_RUNTIME_EXTENSION_CMAKE "${CMAKE_SOURCE_DIR}/portable/AttachReallyportable.cmake" CACHE FILEPATH "Optional runtime extension CMake integration; source-only TH07 adapter by default")
 if(TH_ENABLE_THPRAC AND TH_RUNTIME_EXTENSION_CMAKE)
     include("${TH_RUNTIME_EXTENSION_CMAKE}")
     thprac_portable_attach(${TH_EXEC_NAME} th07 "${CMAKE_CURRENT_SOURCE_DIR}/src")

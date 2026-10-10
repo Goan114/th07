@@ -16,6 +16,9 @@ assert.equal(sha(source), 'b5be6dc698f574992ab49696c5c0d8ad756af93bf0760be1504ee
 const components = read('thprac/src/thprac/thprac_gui_components.cpp');
 const definitions = JSON.parse(read('thprac/src/thprac/thprac_games_def.json'));
 const glossary = Object.assign({}, ...Object.values(definitions).map(game => game.glossary ?? {}));
+const tools = read('thprac/src/thprac/thprac_launcher_tools.cpp');
+const toolsHeader = read('thprac/src/thprac/thprac_launcher_tools.h');
+const nativeReaction = region(tools, 'THGuiTestReactionTest::THGuiTestReactionTest()', 'class THGuiRollPlayer');
 const start = components.indexOf('        bool GuiHotKey::OnWidgetUpdate()');
 const end = components.indexOf('        bool GuiHotKey::operator()', start);
 assert(start >= 0 && end > start);
@@ -26,8 +29,12 @@ widget = widget.replace('std::format("[{}: {}]", mKeyText, text)', 'std::string(
 widget = widget.replace('std::format("{}: {}", mKeyText, text)', 'std::string(mKeyText) + ": " + text');
 assert(!/std::format|LocaleGetStr|mTextRef|GuiHotKey::/.test(widget));
 const labelKeys = ['THPRAC_INGAMEINFO', 'TH_ENEMY_MUTEKI', 'TH_ADV_DISABLE_X_KEY', 'TH_ADV_DISABLE_SHIFT_KEY',
-  'TH_ADV_DISABLE_Z_KEY', 'TH_ADV_DISABLE_C_KEY_SAMETIME', 'TH_ADV_FORCE_SHIFT_KEY', 'THPRAC_INFLIVES_MAP'];
-const labels = labelKeys.map(key => {
+  'TH_ADV_DISABLE_Z_KEY', 'TH_ADV_DISABLE_C_KEY_SAMETIME', 'TH_ADV_FORCE_SHIFT_KEY', 'THPRAC_INFLIVES_MAP',
+  'TH_ENABLE_LOCK_TIMER', 'THPRAC_SHOW_BULLET_HITBOX', 'TH_ONE_KEY_DIE', 'TH_ONE_KEY_DIE_DESC',
+  'THPRAC_KB_OPEN', 'THPRAC_KB_RECORD_START', 'THPRAC_KB_RECORD_STOP', 'THPRAC_KB_OUTPUT',
+  'THPRAC_TH07_ALWAYS_SAVE_SCORE_SPELL_HIST', 'THPRAC_TH07_ALWAYS_SAVE_SCORE_SPELL_HIST_DESC',
+  'THPRAC_TOOLS_REACTION_TEST', ...new Set([...nativeReaction.matchAll(/S\((TH\w+)\)/g)].map(m=>m[1]))];
+const labels = [...new Set(labelKeys)].map(key => {
   assert(Array.isArray(glossary[key]) && glossary[key].length === 3, key);
   return `inline constexpr const char* purple_${key}[3]{${glossary[key].map(value => JSON.stringify(value)).join(',')}};`;
 }).join('\n');
@@ -67,10 +74,85 @@ const inventory = {
   widgetSourceSha256: sha(components), hooks, advancedCalls: calls,
   sections: Object.keys(definitions.th07.sections),
 };
+const hitboxStart = source.indexOf('    void RenderBtHitbox(ImDrawList* p)');
+const hitboxEnd = source.indexOf('    void RenderLockTimer(', hitboxStart);
+assert(hitboxStart >= 0 && hitboxEnd > hitboxStart);
+let hitbox = source.slice(hitboxStart, hitboxEnd).replace('void RenderBtHitbox(ImDrawList* p)', 'inline void RenderPurpleHitbox(ImDrawList* p, bool enabled)')
+  .replace('g_show_bullet_hitbox', 'enabled')
+  .replace('DWORD game_state = *(DWORD*)(0x62F648);', 'const auto game_state = g_GameManager.flags;')
+  .replace('thPracParam.mode', 'PracticeRuntime::AdvancedActive()')
+  .replace('ImVec2 plpos1 = *(ImVec2*)(0x4BE420);', 'ImVec2 plpos1{g_Player.hitboxTopLeft.x, g_Player.hitboxTopLeft.y};')
+  .replace('ImVec2 plpos2 = *(ImVec2*)(0x004BE42C);', 'ImVec2 plpos2{g_Player.hitboxBottomRight.x, g_Player.hitboxBottomRight.y};')
+  .replace('DWORD pbt = 0x0062F958 + 0xB8C0 + 0x35A000 - 0xD68 * i - 0xD68;', 'const auto& bullet = g_BulletManager.bullets[1023 - i];')
+  .replace('*(DWORD*)(pbt + 0xBFC)', 'bullet.state')
+  .replace('ImVec2 pos = *(ImVec2*)(pbt + 0xB8C);', 'ImVec2 pos{bullet.pos.x, bullet.pos.y};')
+  .replace('ImVec2 hit = *(ImVec2*)(pbt + 0xB7C);', 'ImVec2 hit{bullet.sprites.grazeSize.x, bullet.sprites.grazeSize.y};')
+  .replace('DWORD pls = 0x00995F80 + 0x4EC * i;', 'const auto& laser = g_BulletManager.lasers[i];')
+  .replace('DWORD is_used = *(DWORD*)(pls + 0x4D4);', 'const auto is_used = laser.isInUse;')
+  .replace('ImVec2 pos = *(ImVec2*)(pls + 0x498);', 'ImVec2 pos{laser.pos.x, laser.pos.y};');
+const laserFields = {'4A4':'angle','4B4':'width','4A8':'startOffset','4AC':'endOffset','4E8':'state',
+ '4C4':'hitboxStartTime','4D0':'hitboxEndTime','4E0':'timer.current','4DC':'timer.subFrame',
+ '4C0':'startTime','4CC':'endTime'};
+hitbox = hitbox.replace(/\*\((?:float|DWORD)\*\)\(pls \+ 0x([0-9A-F]+)\)/g, (_, offset) => {
+ assert(offset in laserFields, offset); return 'laser.' + laserFields[offset];
+});
+assert(!/DWORD|pbt|pls|thPracParam|\*\([^\n]*\*\)/.test(hitbox), 'Unmapped native hitbox address');
+function region(s,a,b) { const i=s.indexOf(a), j=s.indexOf(b,i); assert(i>=0&&j>i,a); return s.slice(i,j); }
+const keySource=read('thprac/src/thprac/thprac_igi_key_render.cpp');
+const keyHeader=read('thprac/src/thprac/thprac_igi_key_render.h');
+const keyEnum=region(keySource,'enum THKey','void static KeysRect')
+ .replace('const std::string THKeyNames[]', 'inline static const std::string THKeyNames[]');
+const keyStyle=region(keyHeader,'struct KeyRectStyle','void RecordKey');
+let record=region(keySource,'void RecordKey(','void KeysHUD(')
+ .replace('void RecordKey(int ver, uint32_t cur_key)','void record(int ver, uint32_t cur_key)')
+ .replace('    static std::deque<uint32_t> keys_per_sec; // 60 f','');
+let hud=region(keySource,'void static KeysRect','void RecordKey(')+region(keySource,'void KeysHUD(','void SaveKeyRecorded()');
+hud=hud.replace('    ImGuiIO& io = ImGui::GetIO();',
+ '    const auto& g_keys_down=monitor.g_keys_down;\n    const auto& g_key_mask=monitor.g_key_mask;\n    const auto g_aps_cur=monitor.g_aps_cur;\n    ImGuiIO& io = ImGui::GetIO();')
+ .replace('const KeyRectStyle& style, bool align_right_arrow, bool align_right_key)',
+ 'const KeyRectStyle& style, const PurpleKeyMonitor& monitor, bool align_right_arrow=true, bool align_right_key=false)')
+ .replace('std::string aps_text = std::format("aps: {:>3}/(60frame)", g_aps_cur);',
+ 'char aps_buffer[64];std::snprintf(aps_buffer,sizeof(aps_buffer),"aps: %3d/(60frame)",g_aps_cur);std::string aps_text=aps_buffer;');
+assert(!hud.includes('std::format'));
+const monitor=banner+'#pragma once\n#include <imgui.h>\n#include <deque>\n#include <vector>\n#include <string>\n#include <cstdio>\n#include <cmath>\n#include <cstdint>\nnamespace PracticeRuntime {\n'+keyStyle+
+ 'struct PurpleKeyMonitor {\n'+keyEnum+
+ ' bool g_record_key_aps=false;int g_aps_cur=0;std::vector<int> g_recorded_aps;std::vector<uint16_t> g_recorded_keys;std::deque<uint32_t> keys_per_sec;\n'+record+
+ ' void clear_record(){g_recorded_aps.clear();g_recorded_keys.clear();}\n'+
+ ' std::string csv() const {std::string out="frame,aps";for(const auto& key:THKeyNames)out+=","+key;out+="\\n";\n'+
+ '  for(size_t j=0;j<g_recorded_aps.size();++j){out+=std::to_string(j+1)+","+std::to_string(g_recorded_aps[j]);for(int i=0;i<END;++i)out+=(g_recorded_keys[j]&(1<<i))?",O":",-";out+="\\n";}return out;}\n};\n'+
+ hud.replace(/\bKey_(Up|Down|Left|Right|Z|X|C|D|Ctrl|Shift)\b/g,'PurpleKeyMonitor::Key_$1')+'\n}\n';
+const reactionClass = toolsHeader.match(/class THGuiTestReactionTest[\s\S]*?\n};/)?.[0];
+assert(reactionClass, 'Reaction class drift');
+let reaction = nativeReaction.replaceAll('LARGE_INTEGER','PurpleCounter')
+ .replaceAll('QueryPerformanceFrequency','purple_counter_frequency')
+ .replaceAll('QueryPerformanceCounter','purple_counter_now')
+ .replaceAll('GetRndGenerator','purple_random_generator').replaceAll('DWORD','unsigned')
+ .replaceAll('std::fabsf','std::fabs')
+ .replace('ImGui::Text(S(THPRAC_TOOLS_REACTION_TEST_TOO_EARLY));', 'ImGui::TextUnformatted(S(THPRAC_TOOLS_REACTION_TEST_TOO_EARLY));')
+ .replace(/    Gui::KeyboardInputUpdate\([^\n]+\);\n/g,'')
+ .replace(/bool isKeyPressed = ImGui::IsKeyDown\(37\)[\s\S]*?;/,'bool isKeyPressed = (buttons & 0xf0) != 0;')
+ .replace('bool THGuiTestReactionTest::GuiUpdate(bool ingame)','inline bool THGuiTestReactionTest::GuiUpdate(bool ingame, unsigned buttons, int locale)')
+ .replace('    PurpleCounter curTime;','    const auto pressedButtons = buttons & ~mPreviousButtons;\n    mPreviousButtons = buttons;\n    PurpleCounter curTime;')
+ .replaceAll("ImGui::IsKeyPressed('Z')", '(pressedButtons & 1)')
+ .replaceAll('ImGui::IsKeyPressed(VK_SHIFT)', '(pressedButtons & 4)')
+ .replaceAll('GuiCenteredText(S(THPRAC_TOOLS_REACTION_TEST));','ImGui::TextUnformatted(S(THPRAC_TOOLS_REACTION_TEST));')
+ .replaceAll('std::format("{}(framecount)", S(THPRAC_TOOLS_REACTION_TEST_RESULT)).c_str()', '(std::string(S(THPRAC_TOOLS_REACTION_TEST_RESULT))+"(framecount)").c_str()')
+ .replace(/S\((TH\w+)\)/g, (_,k)=>'purple_'+k+'[locale]')
+ .replace('THGuiTestReactionTest::THGuiTestReactionTest()', 'inline THGuiTestReactionTest::THGuiTestReactionTest()')
+ .replace('void THGuiTestReactionTest::Reset()', 'inline void THGuiTestReactionTest::Reset()');
+assert(!/GetAsyncKeyState|\bGui::|VK_|std::format|QueryPerformance|GetRndGenerator/.test(reaction.replace(/\/\/[^\n]*/g,'')), 'Unmapped reaction boundary');
+const reactionHeader = banner+'#pragma once\n#include "PurpleHotkey.hpp"\n#include <SDL3/SDL.h>\n#include <functional>\n#include <random>\n#include <vector>\n#include <cmath>\n#include <algorithm>\nnamespace PracticeRuntime {\n'+
+ 'struct PurpleCounter { int64_t QuadPart=0; };\ninline void purple_counter_frequency(PurpleCounter* p){p->QuadPart=1000000000;}\ninline void purple_counter_now(PurpleCounter* p){p->QuadPart=SDL_GetTicksNS();}\n'+
+ 'inline std::function<unsigned()> purple_random_generator(unsigned lo,unsigned hi){return std::bind(std::uniform_int_distribution<unsigned>(lo,hi),std::mt19937(unsigned(SDL_GetTicksNS())));}\n'+
+ reactionClass.replaceAll('LARGE_INTEGER','PurpleCounter').replace('bool GuiUpdate(bool ingame = false);','bool GuiUpdate(bool ingame, unsigned buttons, int locale);')
+ .replace('    int mFrameCount;','    unsigned mPreviousButtons=0;\n    int mFrameCount;')+'\n'+reaction+'\n}\n';
 const files = {
   'src/PurpleHotkey.hpp': header,
   'src/PurpleInput.hpp': inputHeader,
   'src/PurpleLicense.hpp': banner + '#pragma once\nnamespace PracticeRuntime { inline constexpr const char* purple_license = ' + JSON.stringify(read('LICENCE')) + '; }\n',
+  'src/PurpleVisuals.hpp': banner + '#pragma once\n#include <cmath>\n#include <imgui.h>\n#include "BulletManager.hpp"\n#include "GameManager.hpp"\n#include "Player.hpp"\nnamespace PracticeRuntime {\n' + hitbox + '\n}\n',
+  'src/PurpleKeyMonitor.hpp': monitor,
+  'src/PurpleReaction.hpp': reactionHeader,
   'audit/source-contracts/th07-purple-inventory.json': JSON.stringify(inventory, null, 2) + '\n',
 };
 for (const [file, contents] of Object.entries(files)) {

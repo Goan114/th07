@@ -3976,6 +3976,9 @@ void Player::UpdateUI()
 
 u32 Player::OnUpdate(Player *arg)
 {
+    // Native purple th07_record_key observes gameplay input at this owner,
+    // including Replay input. It must not run from a presentation-only frame.
+    if (arg == &g_Player) PracticeRuntime::RecordKeyInput(g_CurFrameGameInput);
 #ifdef TH_ENABLE_MULTIPLAYER_GAMEPLAY
     if (MultiplayerGameplay::IsMultiplayer())
     {
