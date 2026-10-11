@@ -782,6 +782,8 @@ async function installStartupBranding(core, {game, builtAt, fs = core.FS} = {}) 
           if (typeof message.fireEnabled !== "boolean" || typeof message.focusEnabled !== "boolean" || !Number.isInteger(message.bombSerial) || !Number.isInteger(message.escapeSerial) ||
               !Number.isInteger(message.joystickX) || !Number.isInteger(message.joystickY) || message.joystickX < -32768 || message.joystickX > 32767 || message.joystickY < -32768 || message.joystickY > 32767 ||
               !Number.isFinite(message.touchSensitivity) || message.touchSensitivity < 100 || message.touchSensitivity > 300) throw new Error("invalid touch controls");
+          Module.eaglerControls.thpracMobilePanelsEnabled = message.thpracMobilePanelsEnabled === true;
+          Module.eaglerControls.thpracMobilePanelsVisible = message.thpracMobilePanelsVisible === true;
           Module.eaglerControls.fireEnabled = message.fireEnabled; Module.eaglerControls.focusEnabled = message.focusEnabled;
           Module.eaglerControls.bombSerial = message.bombSerial; Module.eaglerControls.escapeSerial = message.escapeSerial;
           Module.eaglerControls.joystickX = message.joystickX; Module.eaglerControls.joystickY = message.joystickY;

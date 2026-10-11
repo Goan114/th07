@@ -27,6 +27,8 @@
 #ifdef TH_ENABLE_THPRAC
 #include <SDL3/SDL.h>
 #include "ThpracImGui.hpp"
+#include <eagler/thprac/PracticeMobilePanels.hpp>
+namespace MobileThprac = eagler::thprac::mobile;
 #endif
 #if defined(THPRAC_PORTABLE_ENABLED)
 #include "section_catalog.hpp"
@@ -1808,7 +1810,7 @@ void DrawOverlay()
         g_ModMenuToggleRequested = false;
     }
     PublishEaglerOverlayMenuState(g_Overlay.menuOpen);
-    if (g_Overlay.menuOpen)
+    if (MobileThprac::show(MobileThprac::Cheats, g_Overlay.menuOpen))
     {
         // GuiHotKey F1..F7 are only evaluated from THOverlay::OnContentUpdate
         // while the Mod Menu is open. Their key history intentionally does not
@@ -1826,7 +1828,7 @@ void DrawOverlay()
         constexpr ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
             ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings |
             ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav;
-        if (ImGui::Begin("Mod Menu###th07-thprac-overlay", nullptr, flags))
+        if (MobileThprac::begin(MobileThprac::Cheats, "Mod Menu###th07-thprac-overlay", flags, static_cast<int>(ThpracImGui::GetLocale())))
         {
             ImGui::Checkbox(ThpracImGui::Text(ThpracImGui::TextId::Invincible), &g_Overlay.invincible);
             ImGui::Checkbox(ThpracImGui::Text(ThpracImGui::TextId::InfLives), &g_Overlay.infiniteLives);
@@ -1844,7 +1846,7 @@ void DrawOverlay()
         g_AdvancedOptions.menuOpen = !g_AdvancedOptions.menuOpen;
         g_AdvancedMenuToggleRequested = false;
     }
-    if (g_Overlay.trackerOpen && g_Supervisor.curState == 2 && g_GameManager.globals)
+    if (MobileThprac::show(MobileThprac::Information, g_Overlay.trackerOpen) && g_Supervisor.curState == 2 && g_GameManager.globals)
     {
         static const char *diff[3][6] = {
             {"Easy", "Normal", "Hard", "Lunatic", "Extra", "Phantasm"},
@@ -1863,7 +1865,7 @@ void DrawOverlay()
             ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
             ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoFocusOnAppearing |
             ImGuiWindowFlags_NoNav;
-        if (ImGui::Begin("Tracker###th07-thprac-tracker", nullptr, flags))
+        if (MobileThprac::begin(MobileThprac::Information, "Tracker###th07-thprac-tracker", flags, static_cast<int>(ThpracImGui::GetLocale())))
         {
             char title[48] = {};
             std::snprintf(title, sizeof(title), "%s (%s)", diff[locale][Clamp(g_GameManager.difficulty, 0, 5)],
@@ -1887,7 +1889,7 @@ void DrawOverlay()
         }
         ImGui::End();
     }
-    if (g_AdvancedOptions.menuOpen)
+    if (MobileThprac::show(MobileThprac::Advanced, g_AdvancedOptions.menuOpen))
     {
         const i32 locale = static_cast<i32>(ThpracImGui::GetLocale());
         static const char *gameplay[3] = {"游戏玩法", "Gameplay", "ゲームプレイ"};
@@ -1906,7 +1908,7 @@ void DrawOverlay()
         ImGui::SetNextWindowBgAlpha(0.8f);
         constexpr ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
             ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings;
-        if (ImGui::Begin("Advanced Options###th07-thprac-advanced", nullptr, flags))
+        if (MobileThprac::begin(MobileThprac::Advanced, "Advanced Options###th07-thprac-advanced", flags, static_cast<int>(ThpracImGui::GetLocale())))
         {
             ImGui::TextUnformatted(ThpracImGui::Text(ThpracImGui::TextId::AdvancedOptions));
             ImGui::Separator();
@@ -1978,7 +1980,7 @@ void DrawOverlay()
 bool AdvancedOptionsOpen()
 {
 #ifdef TH_ENABLE_THPRAC
-    return g_AdvancedOptions.menuOpen;
+    return MobileThprac::captures_advanced(g_AdvancedOptions.menuOpen);
 #else
     return false;
 #endif
@@ -1990,7 +1992,7 @@ bool CapturesGameInput()
     // Match TH08 ThpracUi::captures_game_input(): this identifies trainer
     // ownership but does not suppress the finger stream that also feeds the
     // existing menu/navigation path.
-    return g_MenuOpen || g_AdvancedOptions.menuOpen;
+    return g_MenuOpen || MobileThprac::captures_advanced(g_AdvancedOptions.menuOpen);
 #else
     return false;
 #endif
