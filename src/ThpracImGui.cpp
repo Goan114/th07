@@ -8,6 +8,7 @@
 #include "Supervisor.hpp"
 #include "imgui_freetype.h"
 #include "utils.hpp"
+#include "PurpleHotkey.hpp"
 #if defined(THPRAC_PORTABLE_ENABLED)
 #include "section_catalog.hpp"
 #endif
@@ -37,6 +38,7 @@ namespace
 bool g_Initialized = false;
 bool g_FrameOpen = false;
 std::uint16_t g_GameButtons = 0;
+std::uint16_t g_GameHeldButtons = 0;
 bool g_GameNavEnabled = true;
 Locale g_Locale = Locale::EnUS;
 Locale g_PendingLocale = Locale::EnUS;
@@ -114,6 +116,8 @@ constexpr const char *g_Text[][3] = {
     {"高级选项", "Advanced Options", "詳細設定"},
     {"游戏速度", "Game Speed", "ゲーム速度"},
     {"修复符卡bonus的显示bug", "Fix the display bug of the spell bonus", "スペカボーナスの表示バグを修正"},
+    {PracticeRuntime::purple_THPRAC_INGAMEINFO[0], PracticeRuntime::purple_THPRAC_INGAMEINFO[1], PracticeRuntime::purple_THPRAC_INGAMEINFO[2]},
+    {PracticeRuntime::purple_TH_ENEMY_MUTEKI[0], PracticeRuntime::purple_TH_ENEMY_MUTEKI[1], PracticeRuntime::purple_TH_ENEMY_MUTEKI[2]},
 };
 
 Locale DetectLocale()
@@ -315,6 +319,14 @@ bool BuildLocaleFont(ImGuiIO &io, Locale locale)
 void ApplyGameInput()
 {
     ImGuiIO &io = ImGui::GetIO();
+    // Shared purple tools use the upstream virtual-key indices, independently
+    // of menu navigation. Do not turn Z/X into ImGui Activate/Cancel.
+    io.KeysDown[37] = (g_GameHeldButtons & TH_BUTTON_LEFT) != 0;
+    io.KeysDown[38] = (g_GameHeldButtons & TH_BUTTON_UP) != 0;
+    io.KeysDown[39] = (g_GameHeldButtons & TH_BUTTON_RIGHT) != 0;
+    io.KeysDown[40] = (g_GameHeldButtons & TH_BUTTON_DOWN) != 0;
+    io.KeysDown[90] = (g_GameHeldButtons & TH_BUTTON_SHOOT) != 0;
+    io.KeysDown[16] = (g_GameHeldButtons & TH_BUTTON_FOCUS) != 0;
     io.NavInputs[ImGuiNavInput_DpadUp] = g_GameNavEnabled && (g_GameButtons & TH_BUTTON_UP) != 0 ? 1.0f : 0.0f;
     io.NavInputs[ImGuiNavInput_DpadDown] = g_GameNavEnabled && (g_GameButtons & TH_BUTTON_DOWN) != 0 ? 1.0f : 0.0f;
     io.NavInputs[ImGuiNavInput_DpadLeft] = g_GameNavEnabled && (g_GameButtons & TH_BUTTON_LEFT) != 0 ? 1.0f : 0.0f;
@@ -507,6 +519,9 @@ const char *Text(TextId id)
 
 void SetGameInput(std::uint16_t buttons, bool sampled)
 {
+    // Hold state survives presentation-only frames; menu pulses do not.
+    if (sampled)
+        g_GameHeldButtons = buttons;
     g_GameButtons = BuildGameInputPulse(buttons, g_LastFrameRawInput,
                                         g_IsEighthFrameOfHeldInput != 0, sampled);
     if (g_Initialized)

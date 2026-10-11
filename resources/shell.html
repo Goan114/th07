@@ -620,14 +620,23 @@ async function installStartupBranding(core, {game, builtAt, fs = core.FS} = {}) 
         case "F6": return 1 << 6;
         case "F7": return 1 << 7;
         case "Tab": return 1 << 8;
+        case "F12": return 1 << 9;
+        case "KeyU": return 1 << 10;
+        case "F8": return 1 << 11;
         }
         const key = String(event.key || "").toLowerCase();
         if (key === "backspace") return 1 << 0;
         if (key === "tab") return 1 << 8;
+        if (key === "f12") return 1 << 9;
+        if (key === "u") return 1 << 10;
+        if (key === "f8") return 1 << 11;
         if (/^f[1-7]$/.test(key)) return 1 << Number(key.slice(1));
         const keyCode = Number(event.keyCode) || 0;
         if (keyCode === 8) return 1 << 0;
         if (keyCode === 9) return 1 << 8;
+        if (keyCode === 123) return 1 << 9;
+        if (keyCode === 85) return 1 << 10;
+        if (keyCode === 119) return 1 << 11;
         if (keyCode >= 112 && keyCode <= 118) return 1 << (keyCode - 111);
         return 0;
       };
