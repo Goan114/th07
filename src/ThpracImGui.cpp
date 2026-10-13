@@ -1,4 +1,8 @@
 #include "ThpracImGui.hpp"
+#include <eagler/thprac/PracticePointer.hpp>
+#include <imgui_internal.h>
+#include <deque>
+#include <cmath>
 
 #ifdef TH_ENABLE_THPRAC
 
@@ -52,6 +56,11 @@ bool g_MousePositionValid = false;
 enum class MousePositionSource { None, Window, Touch, Bridge };
 MousePositionSource g_MousePositionSource = MousePositionSource::None;
 bool g_ProcessingBridgeMouseEvent = false;
+eagler::thprac::PracticePointer g_PracticePointers;
+bool g_PrimaryTouchActive = false;
+std::int64_t g_PrimaryTouchId = 0;
+struct PointerEdge { int type; float x, y; };
+std::deque<PointerEdge> g_PointerEdges;
 
 constexpr const char *g_Text[][3] = {
     {"练习选项", "Option", "オプション"},
@@ -342,6 +351,17 @@ void ApplyGameInput()
 
 void ApplyMouseInput()
 {
+    if (!g_PointerEdges.empty()) {
+        const auto edge = g_PointerEdges.front();
+        g_PointerEdges.pop_front();
+        SDL_Event event{};
+        event.type = edge.type == 1 ? SDL_EVENT_MOUSE_BUTTON_DOWN : SDL_EVENT_MOUSE_BUTTON_UP;
+        event.button.button = SDL_BUTTON_LEFT;
+        event.button.x = edge.x; event.button.y = edge.y;
+        g_ProcessingBridgeMouseEvent = true;
+        ProcessEvent(event);
+        g_ProcessingBridgeMouseEvent = false;
+    }
     ImGuiIO &io = ImGui::GetIO();
 
     // Original thprac only requires the game to be the foreground window for
@@ -478,6 +498,7 @@ bool Initialize()
 
 void Shutdown()
 {
+    CancelLogicalPointers();
     if (!g_Initialized)
         return;
     if (g_FrameOpen)
@@ -560,6 +581,7 @@ void ProcessEvent(const SDL_Event &event)
     switch (event.type)
     {
     case SDL_EVENT_MOUSE_MOTION:
+        if (!g_ProcessingBridgeMouseEvent && event.motion.which == SDL_TOUCH_MOUSEID) break;
         g_MouseClientX = event.motion.x;
         g_MouseClientY = event.motion.y;
         g_MousePositionValid = true;
@@ -569,6 +591,7 @@ void ProcessEvent(const SDL_Event &event)
     case SDL_EVENT_MOUSE_BUTTON_DOWN:
     case SDL_EVENT_MOUSE_BUTTON_UP:
     {
+        if (!g_ProcessingBridgeMouseEvent && event.button.which == SDL_TOUCH_MOUSEID) break;
         const int index = mouseButtonIndex(event.button.button);
         g_MouseClientX = event.button.x;
         g_MouseClientY = event.button.y;
@@ -593,6 +616,7 @@ void ProcessEvent(const SDL_Event &event)
     case SDL_EVENT_WINDOW_FOCUS_LOST:
     case SDL_EVENT_WILL_ENTER_BACKGROUND:
     case SDL_EVENT_DID_ENTER_BACKGROUND:
+        CancelLogicalPointers();
         for (bool &down : g_MouseButtons)
             down = false;
         g_MousePositionValid = false;
@@ -604,8 +628,62 @@ void ProcessEvent(const SDL_Event &event)
     }
 }
 
+void CancelLogicalPointers()
+{
+    g_PracticePointers.reset();
+    g_PrimaryTouchActive = false;
+    g_PointerEdges.clear();
+    for (auto& down : g_MouseButtons) down = false;
+    g_MousePositionValid = false;
+}
+
+bool RouteTouchPointer(unsigned type, std::int64_t id, float x, float y, bool logical)
+{
+    if (!g_Initialized || type > 3) return false;
+    if (type == 3) {
+        const bool owned = g_PracticePointers.route(2,id,false);
+        if (owned && g_PrimaryTouchActive && id == g_PrimaryTouchId) {
+            g_PrimaryTouchActive = false;
+            g_PointerEdges.clear();
+            g_MouseButtons[0] = false;
+            g_MousePositionValid = false;
+        }
+        return owned;
+    }
+    if (!std::isfinite(x) || !std::isfinite(y)) return false;
+    if (logical) { x *= 640.f; y *= 480.f; }
+    else {
+        int width=0,height=0; SDL_GetWindowSize(g_GameWindow.window,&width,&height);
+        const float scale=std::min(float(width)/640.f,float(height)/480.f);
+        if (!(scale>0)) return false;
+        x=(x*width-(width-640.f*scale)*.5f)/scale;
+        y=(y*height-(height-480.f*scale)*.5f)/scale;
+    }
+    bool hit = ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel);
+    if (type == 0) {
+        for (auto* window : ImGui::GetCurrentContext()->Windows)
+            if (window->Active && !window->Hidden && !(window->Flags & ImGuiWindowFlags_NoMouseInputs) &&
+                window->OuterRectClipped.Contains({x,y})) { hit=true; break; }
+        if (g_PrimaryTouchActive && id == g_PrimaryTouchId) {
+            CancelLogicalPointers();
+        }
+    }
+    if (!g_PracticePointers.route(type,id,hit)) return false;
+    if (type == 0 && !g_PrimaryTouchActive) { g_PrimaryTouchActive=true; g_PrimaryTouchId=id; }
+    if (g_PrimaryTouchActive && id == g_PrimaryTouchId) {
+        ProcessLogicalPointer(type==0?1:type==2?2:0,x,y);
+        if (type==2) g_PrimaryTouchActive=false;
+    }
+    return true;
+}
+
 void ProcessLogicalPointer(int type, float x, float y)
 {
+    if (!g_Initialized || !std::isfinite(x) || !std::isfinite(y)) return;
+    if (type == 1 || type == 2) {
+        if (g_PointerEdges.size() >= 64) { CancelLogicalPointers(); return; }
+        g_PointerEdges.push_back({type,x,y});
+    }
     SDL_Event event = {};
     if (type == 0)
     {

@@ -35,7 +35,7 @@ execFileSync('python', [resolve(sdk, 'install/emscripten/emcc.py'), resolve(root
   '-o', resolve(out, 'input.js')], { cwd: root, env, windowsHide: true, stdio: 'inherit' });
 execFileSync(process.execPath, [resolve(out, 'input.js')], { cwd: root, env, windowsHide: true, stdio: 'inherit' });
 const controller = readFileSync(resolve(root, 'src/Controller.cpp'), 'utf8');
-const guiInput = readFileSync(resolve(root, 'src/ThpracImGui.cpp'), 'utf8');
+const guiInput = readFileSync(resolve(root, 'src/ThpracImGui.cpp'), 'utf8').replaceAll('\r\n', '\n');
 assert(guiInput.includes('if (sampled)\n        g_GameHeldButtons = buttons;'));
 for (const [key, button] of [[37,'LEFT'],[38,'UP'],[39,'RIGHT'],[40,'DOWN'],[90,'SHOOT'],[16,'FOCUS']])
   assert(guiInput.includes(`io.KeysDown[${key}] = (g_GameHeldButtons & TH_BUTTON_${button}) != 0;`));
